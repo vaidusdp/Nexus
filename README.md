@@ -19,7 +19,7 @@ The application is deployed and accessible live. Click the link below to explore
 | Layer | Technologies |
 |---|---|
 | **Frontend** | React (v19), Zustand (Memory Engine), Tailwind CSS (v4), Axios, Lucide Icons |
-| **Backend** | Node.js, Express, Java (Matchmaking Simulation & Services) |
+| **Backend** | Node.js, Express, JavaScript (Matchmaking Simulation & Services) |
 | **Database** | MongoDB (Mongoose ODM) |
 
 ---
