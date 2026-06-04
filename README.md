@@ -6,6 +6,14 @@ Designed with a high-fidelity gamer aesthetic, Nexus showcases robust backend tr
 
 ---
 
+## 🌐 Live Deployment
+
+The application is deployed and accessible live. Click the link below to explore the platform:
+
+👉 **[Launch Nexus Matchmaking Hub](https://nexus-matchmaking-hub.netlify.app/)**
+
+---
+
 ## 🛠️ Tech Stack
 
 | Layer | Technologies |
