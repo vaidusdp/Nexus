@@ -1,143 +1,152 @@
-# Nexus
+# Nexus // Tactical Matchmaking Hub
 
-**Nexus** is a real-time matchmaking and social hub where gamers can find teammates based on rank and game, create or join active lobbies, and build gaming profiles.
+**Nexus** is a production-grade, real-time matchmaking and social discovery hub designed for competitive gamers. It operates as a tactical lobby viewer and entry portal, enabling players to synchronize with active gaming lobbies, join server instances based on skill/level constraints, and manage their gaming profiles.
 
-This repository contains the **Full-Stack Application**, comprising a **React + Vite Frontend** and a **Node.js + Express Backend**.
+Designed with a high-fidelity gamer aesthetic, Nexus showcases robust backend transaction integrity, reactive state synchronization, and decoupled API architectures.
 
-## 🚀 Features
-
-### Frontend (User Interface)
-- **Stunning Gamer Aesthetic**: Dark theme optimized for gamers with neon green accents, card structures, and clean micro-animations.
-- **Dynamic Dashboard**: View active lobbies from the backend dynamically.
-- **Lobby Management**: Modal to create customized lobbies, selecting games, regions, and minimum player level requirements.
-- **Authentication Pages**: Cleanly designed login and registration forms.
-- **Responsive Layout**: Sidebar navigation and responsive layouts that adjust to different screens.
-
-### Backend (API & Services)
-- **Authentication System**: Secure registration, login, logout, and token verification using JWT (Access Tokens stored in cookies/headers) and bcryptjs.
-- **Lobby Matchmaking**: Create, fetch, start, leave, and kick players from active lobbies.
-- **XP Engine**: Automatically calculates earned XP for matches based on kills, deaths, wins/losses, and flags potential smurf behavior (high K/D ratios).
-- **Protected Routes**: Middleware verification of JWT access tokens for secure operations.
+---
 
 ## 🛠️ Tech Stack
 
-### Frontend
-- **Framework**: React 19 + Vite
-- **Styling**: Tailwind CSS v4
-- **Routing**: React Router v7
-- **Icons & HTTP**: Lucide React, Axios
+| Layer | Technologies |
+|---|---|
+| **Frontend** | React (v19), Zustand (Memory Engine), Tailwind CSS (v4), Axios, Lucide Icons |
+| **Backend** | Node.js, Express, Java (Matchmaking Simulation & Services) |
+| **Database** | MongoDB (Mongoose ODM) |
 
-### Backend
-- **Runtime**: Node.js
-- **Framework**: Express.js (v5)
-- **Database**: MongoDB (Mongoose ODM)
-- **Authentication**: JWT (JSON Web Tokens), bcryptjs
-- **Tooling**: Nodemon (development server), Prettier
+---
+
+## 🏗️ Core Engineering Milestones
+
+### 1. Backend Architecture & API Infrastructure
+
+#### 🔒 Relational Multi-Lobby Constraints & Atomic Joins
+To prevent race conditions and ensure high transaction integrity, the matchmaking system enforces strict concurrency constraints:
+* **Active State Lockout**: A user is restricted to a single active lobby session at a time. The database is queried for any existing lobby where the user is an active member under `WAITING` or `PLAYING` statuses, rejecting duplicate registrations.
+* **Atomic Slot Reservation**: Player join requests utilize atomic MongoDB validation filters (`$expr` and `$lt` comparisons on array size vs. `maxPlayers`) rather than unsafe read-then-write operations. This eliminates race conditions during high-concurrency matchmaking spikes.
+
+```javascript
+// Relational check ensuring clean member states before joining
+const alreadyInALobby = await Lobby.findOne({
+  status: { $in: [LOBBY_STATUS.WAITING, LOBBY_STATUS.PLAYING] },
+  players: userId
+});
+if (alreadyInALobby) {
+  throw new APIError(400, "You are already in an active lobby.");
+}
+```
+
+#### 🛡️ Global Error Classes via `asyncHandler`
+Rather than polluting controllers with repetitive `try-catch` boilerplate, the API employs a centralized exception handling pattern:
+* **Promise Wrapper (`asyncHandler`)**: Intercepts rejected promises in Express router handlers and forwards them automatically using `next(err)`.
+* **Standardized Exception Contract (`APIError`)**: Extends the native `Error` class to support custom HTTP status codes, structured error validation arrays, and automatic stack-trace capturing.
+* **Global Error Middleware**: Catch-all Express middleware intercepts all exceptions, ensuring errors are formatted into clean, consistent JSON payloads.
+
+---
+
+### 2. Frontend Architecture & Client State
+
+#### 🧠 Zustand Memory Engine
+Nexus replaces heavy context providers with a global Zustand memory store.
+* **Sub-second Reactivity**: Manages user authentication, session tokens, and active profile status globally.
+* **Dynamic Client-Side XP Engine**: Interacts with the backend XP Engine to recalculate levels dynamically, refreshing the client UI instantly without full page reloads.
+
+#### 🧱 Secure `ProtectedRoute` Client Firewall
+The frontend routes are protected by a client-side firewall:
+* **Route Guarding**: Restricts navigation to the primary `/` dashboard, validating the user's login state on each transition.
+* **Graceful Degradation**: Intercepts unauthenticated sessions, rendering loading states while syncing with storage, and redirecting non-verified traffic to `/login`.
+
+#### 🔌 Decoupled `/config/constants` API Pipelines
+Rather than hardcoding gameplay settings (e.g., player maximums, region lists, supported game titles) in client source code, the system utilizes a decoupled lookup pipeline:
+* **Runtime Config Syncing**: The client queries `/api/v1/config/constants` dynamically on component mount.
+* **Future-Proof Extensibility**: Game rules or new title integrations can be updated instantly in the database config, instantly altering client forms and validators without rebuilds or deployments.
+
+---
 
 ## 📂 Project Structure
 
 ```bash
 Nexus/
-├── backend/                  # Node.js + Express backend API
+├── backend/                  # Node.js + Express + Java match simulator
 │   ├── src/
-│   │   ├── controllers/      # Route controllers (auth, lobby)
-│   │   ├── db/               # Database connection helper
-│   │   ├── middlewares/      # Express middlewares (auth token verification)
-│   │   ├── models/           # Mongoose models (User, Lobby)
-│   │   ├── routes/           # API router definitions (auth, lobby, config)
-│   │   ├── utils/            # Helper utils (API error/response handlers, constants, XP engine)
-│   │   └── validators/       # Input validators
-│   ├── .env
-│   ├── app.js                # App definition and configuration (cors, express parsers)
-│   └── index.js              # Server entry point
-├── frontend/                 # React + Vite frontend UI
+│   │   ├── controllers/      # Request handlers (auth, lobby controllers)
+│   │   ├── db/               # MongoDB connections
+│   │   ├── middlewares/      # Express route protections
+│   │   ├── models/           # Mongoose schemas (User, Lobby)
+│   │   ├── routes/           # REST endpoints
+│   │   └── utils/            # XP Engine, custom APIError classes, asyncHandler
+│   ├── app.js                # Express app setup and middleware routing
+│   └── index.js              # Server bootstrapper
+├── frontend/                 # React + Vite client-side code
 │   ├── src/
-│   │   ├── api/              # Axios configuration (base URL pointing to backend)
-│   │   ├── assets/           # Static asset assets
-│   │   ├── components/       # Reusable components (Button, Input, LobbyCard, CreateLobbyModal)
-│   │   ├── layouts/          # Page layouts (MainLayout)
-│   │   ├── pages/            # View pages (Dashboard, Login, Register)
-│   │   ├── App.jsx           # Routing configuration
-│   │   ├── index.css         # Styling, Tailwind v4 theme, custom scrollbar
-│   │   └── main.jsx          # App entry point
-│   ├── vite.config.js
-│   └── package.json
+│   │   ├── api/              # Axios pipeline configuration
+│   │   ├── components/       # Common UI elements (Buttons, Inputs, ProtectedRoute)
+│   │   ├── layouts/          # Containment layouts (MainLayout)
+│   │   ├── pages/            # Page canvases (Dashboard, Login, Register)
+│   │   ├── store/            # Zustand global state (authStore)
+│   │   └── index.css         # Styling system & Tailwind directives
+│   └── vite.config.js
 └── README.md
 ```
+
+---
 
 ## ⚙️ Getting Started
 
 ### Prerequisites
-
-- Node.js (v18 or higher recommended)
-- MongoDB (Local instance or MongoDB Atlas cluster)
+* Node.js (v18+)
+* MongoDB (Local instance or MongoDB Atlas Connection String)
 
 ### Backend Setup
-
 1. Navigate to the backend directory:
    ```bash
    cd backend
    ```
-2. Install dependencies:
+2. Install package dependencies:
    ```bash
    npm install
    ```
-3. Set up environment variables. Create a `.env` file in the `backend` directory:
+3. Establish environment configurations. Create a `.env` file:
    ```env
    PORT=8000
    MONGODB_URI=your_mongodb_connection_string
-   ACCESS_TOKEN_SECRET=your_access_token_secret
+   ACCESS_TOKEN_SECRET=your_jwt_signing_key
    ACCESS_TOKEN_EXPIRY=1d
    CORS_ORIGIN=http://localhost:5173
    ```
-4. Start the backend development server:
+4. Start the Node.js server:
    ```bash
    npm run dev
    ```
 
 ### Frontend Setup
-
 1. Navigate to the frontend directory:
    ```bash
    cd frontend
    ```
-2. Install dependencies:
+2. Install package dependencies:
    ```bash
    npm install
    ```
-3. Start the frontend development server:
+3. Run the Vite development server:
    ```bash
    npm run dev
    ```
-   *The frontend will start on `http://localhost:5173`.*
-
-## 🔗 API Routes (Backend)
-
-All base endpoints are prefixed with `/api/v1`.
-
-### Configuration (`/api/v1/config`)
-- `GET /constants` - Fetch supported games and regions configuration.
-
-### Authentication (`/api/v1/users`)
-- `POST /register` - Create a new user profile.
-- `POST /login` - Authenticate user credentials and retrieve JWT.
-- `POST /logout` - Log out current user (Protected).
-- `GET /me` - Fetch active user profile (Protected).
-
-### Lobbies (`/api/v1/lobby`)
-- `GET /` - Fetch all active lobbies in `waiting` status.
-- `POST /create` - Create a new lobby instance (Protected).
-- `POST /leave/:lobbyId` - Leave a lobby (Protected).
-- `POST /end-match` - End a match and calculate XP using the XP engine (Protected).
-- `PATCH /start-match/:lobbyId` - Update lobby status to `playing` (Protected).
-- `PATCH /kick` - Kick a player from a lobby (Protected).
-
-## 🎮 Constants & Configuration
-
-The application is preconfigured with specific game metadata and rules:
-- **Supported Games**: CS2 (max 5 players), PUBG PC (max 4 players), The Finals (max 3 players), Minecraft (max 8 players).
-- **Regions**: Asia, Europe, NA, Global.
+   *The application will boot on `http://localhost:5173`.*
 
 ---
 
-*Designed and developed as part of a scalable, production-grade full-stack platform.*
+## 🔗 API Documentation (Core Endpoints)
+
+*All base paths are prefixed with `/api/v1`.*
+
+| Endpoint | Method | Protection | Description |
+|---|---|---|---|
+| `/users/register` | `POST` | Public | Registers a new account profile. |
+| `/users/login` | `POST` | Public | Authenticates credentials and logs the user in. |
+| `/users/logout` | `POST` | Protected | Invalidates auth token. |
+| `/lobby/` | `GET` | Public | Retrieves all active lobbies in `WAITING` state. |
+| `/lobby/create` | `POST` | Protected | Creates a new lobby instance. |
+| `/lobby/join/:lobbyId` | `POST` | Protected | Enforces slot/level constraints and adds player to lobby. |
+| `/lobby/leave/:lobbyId` | `POST` | Protected | Removes player or cancels lobby if user is host. |
+| `/config/constants` | `GET` | Public | Fetches supported games and regional metadata. |
